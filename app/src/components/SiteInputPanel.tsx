@@ -184,7 +184,7 @@ export function SidebarInputPanel(props: SidebarInputProps) {
                   <label className="precip-label" style={{fontSize:11}}>Nearby Storm Facilities (Edmonton Open Data)</label>
                   <div style={{maxHeight:100,overflowY:"auto",fontSize:10,lineHeight:1.5,opacity:0.7}}>
                     {nearbyFacilities.slice(0,5).map((f,i)=>(
-                      <div key={i} style={{padding:"2px 0",borderBottom:"1px solid rgba(57,211,83,0.1)"}}>
+                      <div key={i} style={{padding:"2px 0",borderBottom:"1px solid var(--hg-border)"}}>
                         <strong>{f.name}</strong> — {f.type} ({f.owner}) · {f.distKm} km
                       </div>
                     ))}

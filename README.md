@@ -28,7 +28,7 @@
 
 HydroGrid is an interactive geospatial platform that unifies municipal open data, real-time weather information, and hydrology models into a single browser-based tool. Built for the **HackED 2026** hackathon at the University of Alberta, it is designed to help urban planners and civil engineers make informed decisions about flood risk, stormwater drainage, and infrastructure development in the Edmonton and Alberta region.
 
-Everything runs client-side. There is no backend server -- the app fetches data directly from public APIs and performs all analysis in the browser.
+Everything runs client-side. There is no backend server -- the app fetches data directly from public APIs and performs all analysis in the browser. IDF (Intensity-Duration-Frequency) curves are derived live from ECCC historical precipitation records using Gumbel frequency analysis rather than relying on hardcoded tables.
 
 ---
 
@@ -76,23 +76,36 @@ Everything runs client-side. There is no backend server -- the app fetches data 
 
 </div>
 
+### Site Intelligence
+- Automatic flood zone check (floodway, 100-yr, 200-yr, 500-yr) via Alberta Flood Mapping ArcGIS
+- Nearest storm pipes, development permits, and stormwater facilities from Edmonton Open Data
+- Nearest ECCC climate and hydrometric stations with precipitation normals
+
 ### Drainage Design (Engineering)
 - Select a property or enter site parameters manually
-- Applies the **Rational Method** (Q = C * i * A) for peak flow estimation
-- **SCS Curve-Number** runoff modelling with soil group selection (A/B/C/D)
-- **IDF curve** lookup for Edmonton design storms (2yr through 100yr return periods)
-- Design storm table with pipe sizing recommendations
-- **Low-Impact Development (LID) simulator** -- toggle rain gardens, permeable pavement, green roofs, bioswales and see runoff reduction in real time
+- **Live IDF derivation** — fetches historical daily precipitation from the nearest ECCC climate station, performs **Gumbel frequency analysis** (Method of Moments) on annual maximums, and applies **temporal disaggregation ratios** to generate a complete IDF curve. No hardcoded rainfall values — all derived from real precipitation records at runtime
+- Falls back to verified ECCC published IDF data (Station 3012209, Edmonton Blatchford, 75 years of record) if the live fetch fails
+- Applies the **Rational Method** (Q = CiA) for peak flow estimation
+- **Pre-development vs post-development** runoff comparison with detention sizing via **Modified Rational Method**
+- **Manning's equation** pipe sizing for full-pipe flow
+- **IDF curves** for Edmonton design storms (2-yr through 100-yr return periods)
+- **Low-Impact Development (LID) simulator** — toggle rain gardens, permeable pavement, green roofs, bioswales and see runoff reduction and detention savings in real time
 
 ### Storm Simulation
-- Full hyetograph-based storm simulation over a selected property
-- Time-step runoff, infiltration, and cumulative water balance breakdown
-- Visual hydrograph and soil absorption charts
+- Full **SCS Type II 24-hr** hyetograph-based storm simulation
+- **Green-Ampt infiltration model** with 9 soil types (Rawls, Brakensiek & Miller, 1983)
+- Pre-development vs post-development runoff comparison
+- Detention volume required over time, infiltration capacity vs. rainfall charts
+- Cumulative water balance breakdown (precipitation, runoff, infiltration)
 
 ### Cost Analysis
-- Unit-cost estimation for storm pipes, catch basins, manholes, grading, and LID features
-- Material and labour breakdowns with contingency
-- Total project cost summary with per-hectare and per-metre rates
+- Unit-cost estimation for storm pipes, catch basins, manholes, grading, erosion control, and LID features
+- Fetches **nearest storm pipe distance** from Edmonton Open Data API to estimate connection costs
+- Site preparation, municipal fees (storm connection, building permit), and LID cost categories
+- **With vs. without LID** total cost comparison
+- Material selection (PVC, HDPE, Concrete) with pipe catalogue pricing
+- Engineering (15%) and contingency (10%) factors
+- Per-unit metrics ($/m² lot, $/m² impervious, $/m³ detention)
 
 <div align="center">
 
@@ -141,24 +154,27 @@ Everything runs client-side. There is no backend server -- the app fetches data 
  │  │ Map layers   │  │ Precip.      │  │ 3D globe  │  │              │  │
  │  │ GeoJSON      │  │ charts       │  │ landing   │  │ Rational     │  │
  │  │ Basemaps     │  │ Flow data    │  │ page      │  │ Method       │  │
- │  │ Markers      │  │ Cost graphs  │  │           │  │ SCS CN       │  │
- │  │ Popups       │  │              │  │           │  │ IDF curves   │  │
- │  └──────────────┘  └──────────────┘  └───────────┘  └──────────────┘  │
+ │  │ Markers      │  │ Cost graphs  │  │           │  │ Manning's    │  │
+ │  │ Popups       │  │              │  │           │  │ Gumbel IDF   │  │
+ │  └──────────────┘  └──────────────┘  └───────────┘  │ Green-Ampt   │  │
+ │                                                      │ SCS Type II  │  │
+ │                                                      └──────────────┘  │
  │                                                                        │
  └───────────────────────────────────┬────────────────────────────────────┘
                                      │
                               Analysis Output
                                      │
-          ┌──────────────┬───────────┴──────────┬──────────────┐
-          v              v                      v              v
-  ┌──────────────┐ ┌───────────┐  ┌──────────────┐  ┌──────────────┐
-  │ Flood Risk   │ │ Drainage  │  │ Storm        │  │ Cost         │
-  │ Mapping      │ │ Design    │  │ Simulation   │  │ Estimation   │
-  │              │ │           │  │              │  │              │
-  │ Multi-return │ │ Pipe      │  │ Hyetograph   │  │ Pipes,       │
-  │ period zones │ │ sizing    │  │ runoff model │  │ catch basins │
-  │ on map       │ │ LID sim.  │  │ water balance│  │ LID, grading │
-  └──────────────┘ └───────────┘  └──────────────┘  └──────────────┘
+     ┌──────────────┬──────────────┬──────────┴──────────┬──────────────┐
+     v              v              v                     v              v
+┌──────────┐ ┌──────────────┐ ┌───────────┐  ┌──────────────┐  ┌──────────────┐
+│ Site     │ │ Flood Risk   │ │ Drainage  │  │ Storm        │  │ Cost         │
+│ Report   │ │ Mapping      │ │ Design    │  │ Simulation   │  │ Estimation   │
+│          │ │              │ │           │  │              │  │              │
+│ Nearby   │ │ Multi-return │ │ Pipe      │  │ Hyetograph   │  │ Pipes,       │
+│ infra,   │ │ period zones │ │ sizing    │  │ Green-Ampt   │  │ catch basins │
+│ climate  │ │ on map       │ │ Gumbel    │  │ runoff model │  │ LID, grading │
+│ context  │ │              │ │ IDF, LID  │  │ water balance│  │ with/no LID  │
+└──────────┘ └──────────────┘ └───────────┘  └──────────────┘  └──────────────┘
 ```
 
 ---
@@ -240,6 +256,7 @@ Builds the project and pushes the `dist/` folder to the `gh-pages` branch.
 **State Management:** React hooks and localStorage persistence for theme/basemap preferences.
 **Charts & Visualization:** Recharts for all bar, line, area, and pie charts.
 **Mapping:** Leaflet.js handles all interactive map rendering, GeoJSON overlay management, marker clustering, and popup display. Tile layers served from CARTO, OpenStreetMap, Esri, and OpenTopoMap CDNs.
+**Hydrology Engine:** Shared `utils/hydrology.ts` module provides Rational Method, Manning's equation, Kirpich time of concentration, Modified Rational Method detention sizing, Gumbel frequency analysis, temporal disaggregation, Green-Ampt infiltration, and SCS Type II distribution. The `useStationIDF` hook fetches live ECCC daily precipitation, performs Gumbel fitting on annual maximums, and derives a full IDF table at runtime — falling back to a verified static ECCC table if needed.
 **3D Landing Page:** Three.js globe with NASA Blue Marble colour texture, bump map, specular ocean map, cloud layer, and custom atmosphere shader. Canvas unmounts on scroll for zero GPU overhead on other sections.
 
 ---
@@ -290,7 +307,7 @@ Builds the project and pushes the `dist/` folder to the `gh-pages` branch.
 | Collection | API Endpoint | Used In | Description |
 |-----------|--------------|---------|-------------|
 | Climate Stations | `/collections/climate-stations/items` | Map Layers, Precipitation Explorer | 1,500+ weather stations across Alberta — location, type, elevation, data period |
-| Climate Daily | `/collections/climate-daily/items` | Map Layers, Precipitation Explorer | Daily precipitation, rain, snow, snow depth, and temperature observations |
+| Climate Daily | `/collections/climate-daily/items` | Map Layers, Precipitation Explorer, **IDF Derivation** | Daily precipitation, rain, snow, snow depth, and temperature observations. Top 500 wettest days (sorted descending) are used for Gumbel frequency analysis to derive IDF curves at runtime. |
 | Climate Monthly | `/collections/climate-monthly/items` | Map Layers, Precipitation Explorer | Monthly precipitation totals, snowfall, temperature summaries |
 | Climate Normals (Precipitation) | `/collections/climate-normals/items` (NORMAL_ID=56) | Map Layers | 30-year average annual precipitation depth (mm), 1981–2010 baseline |
 | Climate Normals (Snowfall) | `/collections/climate-normals/items` (NORMAL_ID=54) | Map Layers | 30-year average annual snowfall depth (cm), 1981–2010 baseline |
@@ -303,7 +320,8 @@ Builds the project and pushes the `dist/` folder to the `gh-pages` branch.
 - `PROVINCE_CODE=AB` / `PROV_TERR_STATE_LOC=AB` — filter to Alberta stations
 - `CLIMATE_IDENTIFIER` / `STATION_NUMBER` — station-specific queries
 - `datetime=YYYY-MM-DD/YYYY-MM-DD` — date range filtering
-- `sortby` — chronological ordering
+- `sortby` — chronological ordering, or `-TOTAL_PRECIPITATION` for descending precipitation sort (IDF derivation)
+- `limit` — record count limit (e.g. `limit=500` for top-N wettest days)
 - `properties` — field selection for payload reduction
 
 ---
@@ -343,11 +361,12 @@ Builds the project and pushes the `dist/` folder to the `gh-pages` branch.
 
 ---
 
-### 5. Reference Data (Non-API)
+### 5. Reference Data & Derived Analysis
 
 | Source | Used In | Description |
 |--------|---------|-------------|
-| **ECCC IDF Curves** | Engineering View (Drainage Design) | Intensity-Duration-Frequency data for Edmonton design storms (2yr–100yr). Reference: [ECCC IDF Tool](https://climate-change.canada.ca/climate-data/#/short-duration-rainfall-intensity-idf). Values are embedded as constants derived from published tables. |
+| **ECCC Daily Precipitation → Live IDF** | Engineering View (Drainage Design, Storm Simulation, Cost Analysis) | IDF curves are **derived at runtime** from ECCC historical daily precipitation data. The app finds the nearest climate station, fetches its top 500 wettest days via the `climate-daily` API (sorted by descending `TOTAL_PRECIPITATION`), extracts annual maximum daily precipitation, fits a **Gumbel distribution** (Method of Moments), and applies **temporal disaggregation ratios** to generate sub-daily intensities. Ratios were calibrated against ECCC Engineering Climate Datasets v3.30, Station 3012209 (Edmonton Blatchford, 75 years 1914–2021). Fallback: static ECCC published IDF table. |
+| **ECCC Engineering Climate Datasets** | Fallback IDF, temporal disaggregation ratios | [ECCC IDF v3.30 (2022-10-31)](https://collaboration.cmc.ec.gc.ca/cmc/climate/Engineer_Climate/IDF/idf_v3-30_2022_10_31/IDF_Files_Fichiers/AB.zip) — Station 3012209, Edmonton Blatchford. Used as fallback and to derive the duration-depth ratios for temporal disaggregation. |
 | **NASA Blue Marble** | Landing Page (3D Globe) | Earth colour texture (`earth_8k.jpg`), bump map, specular ocean map, and cloud layer. Bundled as static assets from [NASA Visible Earth](https://visibleearth.nasa.gov/collection/1484/blue-marble). |
 
 ---
@@ -384,8 +403,9 @@ HydroGrid/
     │   │   ├── PrecipitationView.tsx  Climate station explorer + charts
     │   │   ├── HydrometricView.tsx    River flow data + charts
     │   │   ├── EngineeringView.tsx    Drainage design entry point
-    │   │   ├── DrainageCalculator.tsx Rational Method, SCS, IDF, LID
-    │   │   ├── StormSimulationView.tsx Storm hyetograph simulation
+    │   │   ├── SiteReport.tsx         Site intelligence (flood, infra, climate)
+    │   │   ├── DrainageCalculator.tsx Rational Method, IDF, LID, detention
+    │   │   ├── StormSimulationView.tsx Storm simulation (SCS Type II, Green-Ampt)
     │   │   ├── CostAnalysisView.tsx   Infrastructure cost estimation
     │   │   └── SiteInputPanel.tsx     Shared property/site input
     │   ├── config/
@@ -393,7 +413,10 @@ HydroGrid/
     │   │   └── basemaps.ts         Basemap tile URLs and colour profiles
     │   ├── hooks/
     │   │   ├── useMapData.ts       Layer fetching and state management
-    │   │   └── usePropertySearch.ts Property API search logic
+    │   │   ├── usePropertySearch.ts Property API search logic
+    │   │   └── useStationIDF.ts    Live IDF derivation (ECCC → Gumbel → IDF)
+    │   ├── utils/
+    │   │   └── hydrology.ts        Shared hydrology constants, IDF tables, Gumbel, Manning's, Rational Method
     │   ├── types/
     │   │   └── index.ts            Shared TypeScript interfaces
     │   ├── App.tsx                 Root component, routing, theme state

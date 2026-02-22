@@ -28,18 +28,19 @@
   --hg-bg: #f5f7fa;
   --hg-panel: #ffffff;
   --hg-panel-2: #edf0f5;
-  --hg-green: #0f3460;
-  --hg-green-dim: #2c5282;
-  --hg-green-muted: #5a7595;
-  --hg-green-faint: rgba(15, 52, 96, 0.06);
-  --hg-border: rgba(15, 52, 96, 0.15);
-  --hg-border-bright: #0057b7;
+  --hg-green: #1e40af;
+  --hg-green-dim: #334155;
+  --hg-green-muted: #64748b;
+  --hg-green-faint: rgba(30, 64, 175, 0.05);
+  --hg-border: rgba(30, 64, 175, 0.15);
+  --hg-border-bright: #2563eb;
   --hg-glow: 0 0 0 transparent;
   --hg-glow-sm: 0 0 0 transparent;
   --hg-glow-lg: 0 2px 12px rgba(0, 0, 0, 0.1);
   --hg-error: #c0392b;
   --hg-error-bg: rgba(192, 57, 43, 0.08);
-  --hg-layer-icon: #0057b7;
+  --hg-layer-icon: #2563eb;
+  color: #1e293b;
 }
 
 /* ===== Dark Blue Theme (CivicScale-style) ===== */
@@ -2089,6 +2090,21 @@
   background: var(--hg-green-faint);
 }
 
+.dc-stat-safe {
+  border-color: var(--hg-green);
+}
+.dc-stat-safe .dc-stat-value {
+  color: var(--hg-green);
+}
+.dc-stat-danger {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+.dc-stat-danger .dc-stat-value {
+  color: #ef4444;
+  text-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+}
+
 .dc-stat-value {
   font-size: 14px;
   font-weight: 700;
@@ -2377,10 +2393,163 @@
   opacity: 0.7;
 }
 
+/* ===== Engineering Content Area (dc in main panel) ===== */
+.sim-charts-area .dc {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sim-charts-area .dc-header {
+  background: rgba(10, 21, 10, 0.85);
+  border: 1px solid rgba(57, 211, 83, 0.15);
+  border-radius: 4px;
+  padding: 18px 24px 14px;
+  border-bottom: none;
+}
+
+.sim-charts-area .dc-title {
+  font-size: 15px;
+}
+
+.sim-charts-area .dc-subtitle {
+  font-size: 11px;
+}
+
+.sim-charts-area .dc-section {
+  background: rgba(10, 21, 10, 0.85);
+  border: 1px solid rgba(57, 211, 83, 0.15);
+  border-radius: 4px;
+  padding: 20px 24px;
+  border-bottom: none;
+}
+
+.sim-charts-area .dc-section-label {
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.sim-charts-area .dc-stat-grid {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.sim-charts-area .dc-stat {
+  padding: 12px 16px;
+}
+
+.sim-charts-area .dc-stat-value {
+  font-size: 18px;
+}
+
+.sim-charts-area .dc-stat-label {
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.sim-charts-area .dc-note {
+  font-size: 12px;
+}
+
+.sim-charts-area .dc-table {
+  font-size: 13px;
+}
+
+.sim-charts-area .dc-table th {
+  font-size: 10px;
+  padding: 8px 14px;
+}
+
+.sim-charts-area .dc-table td {
+  padding: 8px 14px;
+}
+
+.sim-charts-area .dc-control-row {
+  gap: 20px;
+  margin-bottom: 12px;
+}
+
+.sim-charts-area .dc-control-label {
+  font-size: 12px;
+}
+
+.sim-charts-area .dc-select {
+  font-size: 12px;
+  padding: 5px 10px;
+}
+
+.sim-charts-area .dc-range {
+  width: 120px;
+}
+
+.sim-charts-area .dc-soil-desc {
+  font-size: 12px;
+}
+
+.sim-charts-area .dc-lid-grid {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.sim-charts-area .dc-lid-card {
+  padding: 14px;
+}
+
+.sim-charts-area .dc-lid-name {
+  font-size: 12px;
+}
+
+.sim-charts-area .dc-lid-desc {
+  font-size: 10px;
+}
+
+.sim-charts-area .dc-lid-results {
+  padding: 14px 18px;
+}
+
+.sim-charts-area .dc-lid-result-label {
+  font-size: 11px;
+}
+
+.sim-charts-area .dc-lid-result-value {
+  font-size: 12px;
+}
+
+.sim-charts-area .dc-summary-grid {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.sim-charts-area .dc-summary-item {
+  padding: 14px 16px;
+}
+
+.sim-charts-area .dc-summary-label {
+  font-size: 10px;
+}
+
+.sim-charts-area .dc-summary-value {
+  font-size: 14px;
+}
+
+.sim-charts-area .dc-summary-value.lg {
+  font-size: 22px;
+}
+
+.sim-charts-area .dc-summary-value.sm {
+  font-size: 11px;
+}
+
+.sim-charts-area .dc-disclaimer {
+  font-size: 11px;
+  border-radius: 4px;
+}
+
 /* ===== Engineering View extras ===== */
 .eng-sidebar {
-  width: 380px;
-  min-width: 380px;
+  width: 320px;
+  min-width: 320px;
 }
 
 .eng-prop-summary {
@@ -2612,6 +2781,15 @@
   }
   .sim-charts-area {
     overflow-y: auto;
+  }
+  .sim-charts-area .dc-lid-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .sim-charts-area .dc-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .sim-charts-area .dc-stat-grid {
+    grid-template-columns: 1fr 1fr;
   }
 
   /* ── Chart panels ── */
@@ -2956,6 +3134,213 @@
   color: rgba(120, 150, 255, 0.8);
 }
 
+[data-ui-theme="dark"] .sim-charts-area .dc-section,
+[data-ui-theme="dark"] .sim-charts-area .dc-header {
+  background: rgba(20, 20, 30, 0.9);
+  border-color: rgba(120, 150, 255, 0.15);
+}
+
+[data-ui-theme="accessible"] .sim-charts-area .dc-section,
+[data-ui-theme="accessible"] .sim-charts-area .dc-header {
+  background: #fafafa;
+  border-color: #ccc;
+}
+
+/* ── Accessible: force all dc text to black/dark ── */
+[data-ui-theme="accessible"] .dc-title,
+[data-ui-theme="accessible"] .dc-section-label {
+  color: #1a1a2e;
+}
+[data-ui-theme="accessible"] .dc-subtitle,
+[data-ui-theme="accessible"] .dc-note,
+[data-ui-theme="accessible"] .dc-soil-desc,
+[data-ui-theme="accessible"] .dc-disclaimer {
+  color: #555;
+}
+[data-ui-theme="accessible"] .dc-soil-desc strong {
+  color: #1a1a2e;
+}
+[data-ui-theme="accessible"] .dc-stat {
+  background: #fff;
+  border-color: #ccc;
+}
+[data-ui-theme="accessible"] .dc-stat.highlight {
+  border-color: #0f3460;
+  background: rgba(15, 52, 96, 0.04);
+}
+[data-ui-theme="accessible"] .dc-stat-value {
+  color: #1a1a2e;
+  text-shadow: none;
+}
+[data-ui-theme="accessible"] .dc-stat-label {
+  color: #666;
+}
+[data-ui-theme="accessible"] .dc-stat-safe {
+  border-color: #16a34a;
+}
+[data-ui-theme="accessible"] .dc-stat-safe .dc-stat-value {
+  color: #16a34a;
+}
+[data-ui-theme="accessible"] .dc-table th {
+  color: #555;
+  border-bottom-color: #ccc;
+}
+[data-ui-theme="accessible"] .dc-table td {
+  color: #333;
+  border-bottom-color: #eee;
+}
+[data-ui-theme="accessible"] .dc-row-highlight td {
+  color: #0f3460;
+  background: rgba(15, 52, 96, 0.05);
+}
+[data-ui-theme="accessible"] .dc-control-label {
+  color: #555;
+}
+[data-ui-theme="accessible"] .dc-range-val {
+  color: #1a1a2e;
+}
+[data-ui-theme="accessible"] .dc-select {
+  color: #1a1a2e;
+  background: #fff;
+  border-color: #bbb;
+}
+[data-ui-theme="accessible"] .dc-lid-card {
+  background: #fff;
+  border-color: #ccc;
+}
+[data-ui-theme="accessible"] .dc-lid-card.on {
+  border-color: #0f3460;
+  background: rgba(15, 52, 96, 0.04);
+  box-shadow: none;
+}
+[data-ui-theme="accessible"] .dc-lid-icon {
+  color: #888;
+}
+[data-ui-theme="accessible"] .dc-lid-card.on .dc-lid-icon {
+  color: #0f3460;
+}
+[data-ui-theme="accessible"] .dc-lid-name {
+  color: #333;
+}
+[data-ui-theme="accessible"] .dc-lid-card.on .dc-lid-name {
+  color: #0f3460;
+}
+[data-ui-theme="accessible"] .dc-lid-desc {
+  color: #666;
+}
+[data-ui-theme="accessible"] .dc-lid-results {
+  background: #fafafa;
+  border-color: #0f3460;
+}
+[data-ui-theme="accessible"] .dc-lid-result-label {
+  color: #555;
+}
+[data-ui-theme="accessible"] .dc-lid-result-value {
+  color: #333;
+}
+[data-ui-theme="accessible"] .dc-lid-result-value strong {
+  color: #1a1a2e;
+}
+[data-ui-theme="accessible"] .dc-reduction {
+  color: #0057b7;
+  background: rgba(0, 87, 183, 0.08);
+}
+[data-ui-theme="accessible"] .dc-summary-item {
+  background: #fff;
+  border-color: #ccc;
+}
+[data-ui-theme="accessible"] .dc-summary-item.highlight {
+  border-color: #0f3460;
+  background: rgba(15, 52, 96, 0.04);
+}
+[data-ui-theme="accessible"] .dc-summary-label {
+  color: #666;
+}
+[data-ui-theme="accessible"] .dc-summary-value {
+  color: #1a1a2e;
+}
+[data-ui-theme="accessible"] .dc-summary-value.lg {
+  text-shadow: none;
+}
+[data-ui-theme="accessible"] .dc-summary-value.sm {
+  color: #444;
+}
+[data-ui-theme="accessible"] .dc-disclaimer {
+  background: #f5f5f5;
+  border-color: #ddd;
+}
+/* Sidebar elements */
+[data-ui-theme="accessible"] .precip-sidebar {
+  background: #fff;
+  border-right-color: #ddd;
+  color: #1e293b;
+}
+[data-ui-theme="accessible"] .eng-prop-addr {
+  color: #1e40af;
+}
+[data-ui-theme="accessible"] .eng-prop-meta span {
+  color: #334155;
+}
+[data-ui-theme="accessible"] .eng-prop-meta strong {
+  color: #1e293b;
+}
+[data-ui-theme="accessible"] .eng-prop-derived {
+  color: #475569;
+}
+[data-ui-theme="accessible"] .eng-prop-derived strong {
+  color: #1e293b;
+}
+[data-ui-theme="accessible"] .precip-sidebar-header h2 {
+  color: #1a1a2e;
+}
+[data-ui-theme="accessible"] .precip-subtitle {
+  color: #666;
+}
+[data-ui-theme="accessible"] .eng-field-label {
+  color: #555;
+}
+[data-ui-theme="accessible"] .sim-soil-row span {
+  color: #555;
+}
+[data-ui-theme="accessible"] .sim-soil-row strong {
+  color: #1a1a2e;
+}
+[data-ui-theme="accessible"] .dc-lid-btn {
+  color: #333;
+  border-color: #ccc;
+  background: #fff;
+}
+[data-ui-theme="accessible"] .dc-lid-btn.dc-lid-on {
+  color: #0f3460;
+  border-color: #0f3460;
+  background: rgba(15, 52, 96, 0.06);
+}
+[data-ui-theme="accessible"] .prop-info-card {
+  color: #333;
+}
+[data-ui-theme="accessible"] .prop-info-card strong {
+  color: #1a1a2e;
+}
+[data-ui-theme="accessible"] .footer-credit {
+  color: #888;
+}
+/* Water balance table in simulation */
+[data-ui-theme="accessible"] .sim-waterbalance {
+  color: #333;
+}
+[data-ui-theme="accessible"] .sim-waterbalance h4 {
+  color: #1a1a2e;
+}
+[data-ui-theme="accessible"] .sim-wb-label {
+  color: #555;
+}
+[data-ui-theme="accessible"] .sim-wb-val {
+  color: #1a1a2e;
+}
+[data-ui-theme="accessible"] .sim-wb-op {
+  color: #888;
+}
+
 [data-ui-theme="dark"] .cost-table th {
   color: rgba(120, 150, 255, 0.7);
   border-bottom-color: rgba(120, 150, 255, 0.25);
@@ -2988,11 +3373,18 @@
 }
 
 /* ===== Accessible Theme — Comprehensive Overrides ===== */
+[data-ui-theme="accessible"] .cost-total {
+  background: rgba(30, 64, 175, 0.08);
+  border-color: rgba(30, 64, 175, 0.25);
+}
+[data-ui-theme="accessible"] .cost-total .cost-summary-label {
+  color: #1e40af;
+}
 [data-ui-theme="accessible"] .cost-total .cost-summary-value {
-  color: #0f3460;
+  color: #1e40af;
 }
 [data-ui-theme="accessible"] .cost-row-total td {
-  color: #0f3460 !important;
+  color: #1e40af !important;
   border-top-color: #aaa;
 }
 [data-ui-theme="accessible"] .cost-row-header td {

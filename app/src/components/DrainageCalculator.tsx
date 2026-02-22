@@ -10,6 +10,14 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import {
+  IDF_RETURN_PERIODS,
+  interpolateIntensity,
+  calculateTc, roundUpPipe, calcPipeDiameter,
+  C_ROOF, C_PAVEMENT, C_LAWN, C_GREEN_ROOF, C_PERMEABLE_PAVE, C_PRE_DEV,
+  SOIL_INFILTRATION, type SoilType, SLOPE_OPTIONS,
+} from "../utils/hydrology";
+import type { IDFData } from "../hooks/useStationIDF";
 
 interface DrainageProps {
   lotSize: number;
@@ -18,78 +26,14 @@ interface DrainageProps {
   zoning?: string;
   zoningImpervious?: number;
   zoningPaveFrac?: number;
+  idfData?: IDFData;
 }
-
-// ─── Edmonton IDF Data (VERIFIED - ECCC Stn 3012216) ──────────────────
-// Rainfall intensities (mm/hr) for Edmonton City Centre.
-// Source: Environment and Climate Change Canada / City of Edmonton.
-const IDF_DURATIONS = [5, 10, 15, 30, 60, 120, 360, 720, 1440];
-const IDF_RETURN_PERIODS = [2, 5, 10, 25, 50, 100];
-const IDF_INTENSITIES: Record<number, number[]> = {
-  2:   [65.5, 45.4, 36.0, 23.7, 15.4, 9.91, 4.90, 3.13, 2.00],
-  5:   [98.2, 67.7, 53.5, 35.1, 22.7, 14.5,  7.12, 4.53, 2.88],
-  10:  [119.9, 82.6, 65.2, 42.7, 27.5, 17.6, 8.62, 5.48, 3.48],
-  25:  [147.1, 101.1, 79.7, 52.1, 33.5, 21.4, 10.4, 6.62, 4.19],
-  50:  [167.4, 115.0, 90.6, 59.2, 38.1, 24.3, 11.8, 7.49, 4.75],
-  100: [187.5, 128.7, 101.4, 66.2, 42.5, 27.1, 13.2, 8.35, 5.29],
-};
-
-// ─── Runoff coefficients ──────────────────────────────────────────────
-const C_ROOF = 0.95;
-const C_PAVEMENT = 0.90;
-const C_LAWN = 0.25;
-const C_GREEN_ROOF = 0.40;
-const C_PERMEABLE_PAVE = 0.30;
-
-// Standard Canadian storm pipe diameters (mm)
-const STANDARD_PIPES = [75, 100, 125, 150, 200, 250, 300, 375, 450, 525, 600, 750, 900];
-
-// Soil infiltration rates (mm/hr) — steady-state Green-Ampt approximation
-const SOIL_TYPES = {
-  sand:      { label: "Sand",                rate: 120, desc: "High infiltration — sandy river valley deposits" },
-  sandyLoam: { label: "Sandy Loam",          rate: 30,  desc: "Moderate-high — mixed alluvial soils" },
-  siltLoam:  { label: "Silt Loam",           rate: 12,  desc: "Moderate — typical lowland areas" },
-  clayLoam:  { label: "Clay Loam",           rate: 6,   desc: "Low — glacial lacustrine deposits" },
-  clay:      { label: "Clay (Glacial Till)",  rate: 2,   desc: "Very low — typical Edmonton uplands" },
-} as const;
-
-type SoilType = keyof typeof SOIL_TYPES;
 
 interface LIDState {
   greenRoof: boolean;
   rainGarden: boolean;
   permeablePavement: boolean;
   bioswale: boolean;
-}
-
-// ─── Hydrology functions ──────────────────────────────────────────────
-
-function interpolateIntensity(tc: number, returnPeriod: number): number {
-  const intensities = IDF_INTENSITIES[returnPeriod];
-  if (!intensities) return 0;
-  if (tc <= IDF_DURATIONS[0]) return intensities[0];
-  if (tc >= IDF_DURATIONS[IDF_DURATIONS.length - 1]) return intensities[intensities.length - 1];
-
-  for (let j = 0; j < IDF_DURATIONS.length - 1; j++) {
-    if (tc >= IDF_DURATIONS[j] && tc <= IDF_DURATIONS[j + 1]) {
-      const logT  = Math.log(tc);
-      const logT1 = Math.log(IDF_DURATIONS[j]);
-      const logT2 = Math.log(IDF_DURATIONS[j + 1]);
-      const logI1 = Math.log(intensities[j]);
-      const logI2 = Math.log(intensities[j + 1]);
-      const frac  = (logT - logT1) / (logT2 - logT1);
-      return Math.exp(logI1 + frac * (logI2 - logI1));
-    }
-  }
-  return intensities[0];
-}
-
-/** Kirpich formula (metric). Returns tc in minutes, clamped to [5, 30]. */
-function calculateTc(lotArea: number): number {
-  const flowLength = Math.sqrt(lotArea) * 1.4;
-  const slope = 0.02;
-  const tc = 0.0195 * Math.pow(flowLength, 0.77) * Math.pow(slope, -0.385);
-  return Math.max(5, Math.min(tc, 30));
 }
 
 function compositeC(
@@ -112,30 +56,9 @@ function compositeC(
   return Math.max(0.1, Math.min(C, 0.95));
 }
 
-/**
- * Manning's equation for a circular pipe flowing full.
- * Returns required diameter in mm.
- *   D = (Q·n·4^(5/3) / (π·√S))^(3/8)  then ×1000 for mm
- * Uses n=0.013 (PVC), S=0.5 %
- */
-function requiredPipeDiameter(Q: number): number {
-  if (Q <= 0) return 0;
-  const n = 0.013;
-  const S = 0.005;
-  const D_m = Math.pow((Q * n * 10.079) / (Math.PI * Math.sqrt(S)), 0.375);
-  return D_m * 1000;
-}
-
-function roundUpPipe(d_mm: number): number {
-  for (const size of STANDARD_PIPES) {
-    if (size >= d_mm) return size;
-  }
-  return STANDARD_PIPES[STANDARD_PIPES.length - 1];
-}
-
 // ─── Component ────────────────────────────────────────────────────────
 
-export default function DrainageCalculator({ lotSize, buildingArea, address, zoningPaveFrac }: DrainageProps) {
+export default function DrainageCalculator({ lotSize, buildingArea, address, zoningPaveFrac, idfData }: DrainageProps) {
   const [lid, setLid] = useState<LIDState>({
     greenRoof: false,
     rainGarden: false,
@@ -143,6 +66,7 @@ export default function DrainageCalculator({ lotSize, buildingArea, address, zon
     bioswale: false,
   });
   const [soil, setSoil] = useState<SoilType>("clay");
+  const [siteSlope, setSiteSlope] = useState(0.02);
   const defaultPave = zoningPaveFrac ? Math.round(zoningPaveFrac * 100) : 15;
   const [pavementPct, setPavementPct] = useState(defaultPave);
 
@@ -160,7 +84,7 @@ export default function DrainageCalculator({ lotSize, buildingArea, address, zon
   const imperviousArea  = clampedBuilding + pavementArea;
   const imperviousRatio = imperviousArea / lotSize;
 
-  const tc = calculateTc(lotSize);
+  const tc = calculateTc(lotSize, siteSlope);
 
   const baseC = compositeC(clampedBuilding, pavementArea, lawnArea, lotSize, {
     greenRoof: false, rainGarden: false, permeablePavement: false, bioswale: false,
@@ -169,39 +93,86 @@ export default function DrainageCalculator({ lotSize, buildingArea, address, zon
 
   const area_ha = lotSize / 10000;
 
+  // Use live IDF from nearest station if available, fallback to static ECCC table
+  const getI = idfData?.getIntensity ?? interpolateIntensity;
+  const idfLive = idfData?.live ?? false;
+  const idfStation = idfData?.station;
+
+  // Local detention calc using whichever IDF source is active
+  function localDetention(C_post: number, C_pre: number, areaHa: number, tcMin: number, rp: number) {
+    const durations = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 360, 720, 1440];
+    let maxVol = 0, critDur = tcMin, bestRelease = 0, bestInflow = 0;
+    const Q_release = (C_pre * getI(tcMin, rp) * areaHa) / 360;
+    for (const d of durations) {
+      if (d < tcMin) continue;
+      const i = getI(d, rp);
+      const Q_in = (C_post * i * areaHa) / 360;
+      const vol_in = Q_in * d * 60;
+      const vol_out = Q_release * d * 60;
+      const storage = vol_in - vol_out;
+      if (storage > maxVol) { maxVol = storage; critDur = d; bestRelease = Q_release; bestInflow = Q_in; }
+    }
+    return { critDur, volume_m3: Math.max(0, maxVol), release_Ls: bestRelease * 1000, inflow_Ls: bestInflow * 1000 };
+  }
+
   const results = useMemo(() => {
     return IDF_RETURN_PERIODS.map((rp) => {
-      const i = interpolateIntensity(tc, rp);
+      const i = getI(tc, rp);
       let Q_base = (baseC * i * area_ha) / 360;
       let Q_lid  = (lidC  * i * area_ha) / 360;
-      if (lid.bioswale) Q_lid *= 0.80; // 20% peak attenuation
+      if (lid.bioswale) Q_lid *= 0.80;
 
-      const pipe_base = roundUpPipe(requiredPipeDiameter(Q_base));
-      const pipe_lid  = roundUpPipe(requiredPipeDiameter(Q_lid));
+      const pipe_base = roundUpPipe(calcPipeDiameter(Q_base));
+      const pipe_lid  = roundUpPipe(calcPipeDiameter(Q_lid));
 
-      const depth_mm = i * (tc / 60); // precipitation depth = i × duration
-      const vol_base = (baseC * depth_mm * lotSize) / 1000; // m³
+      const depth_mm = i * (tc / 60);
+      const vol_base = (baseC * depth_mm * lotSize) / 1000;
       let vol_lid    = (lidC  * depth_mm * lotSize) / 1000;
-      if (lid.bioswale) vol_lid *= 0.80;
+      if (lid.bioswale) vol_lid *= 0.95;
 
       return { rp, i, Q_base, Q_lid, pipe_base, pipe_lid, vol_base, vol_lid };
     });
-  }, [tc, baseC, lidC, area_ha, lid.bioswale, lotSize]);
+  }, [tc, baseC, lidC, area_ha, lid.bioswale, lotSize, getI]);
 
-  const soilInfo = SOIL_TYPES[soil];
-  const infiltrationDepth = soilInfo.rate * (tc / 60); // mm infiltrated during tc
-  const potentialInfiltration = (soilInfo.rate * (tc / 60) * lawnArea) / 1000; // m³
+  const preDevResults = useMemo(() => {
+    return IDF_RETURN_PERIODS.map((rp) => {
+      const i = getI(tc, rp);
+      const Q_pre = (C_PRE_DEV * i * area_ha) / 360;
+      return { rp, i, Q_pre };
+    });
+  }, [tc, area_ha, getI]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const detention5 = useMemo(() => localDetention(baseC, C_PRE_DEV, area_ha, tc, 5), [baseC, area_ha, tc, getI]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const detention100 = useMemo(() => localDetention(baseC, C_PRE_DEV, area_ha, tc, 100), [baseC, area_ha, tc, getI]);
+  const detentionLid5 = useMemo(() => {
+    const effectiveC = lid.bioswale ? lidC * 0.80 : lidC;
+    return localDetention(effectiveC, C_PRE_DEV, area_ha, tc, 5);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lidC, lid.bioswale, area_ha, tc, getI]);
+  const detentionLid100 = useMemo(() => {
+    const effectiveC = lid.bioswale ? lidC * 0.80 : lidC;
+    return localDetention(effectiveC, C_PRE_DEV, area_ha, tc, 100);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lidC, lid.bioswale, area_ha, tc, getI]);
+
+  const soilInfo = SOIL_INFILTRATION[soil];
+  const infiltrationDepth = soilInfo.rate * (tc / 60);
+  const potentialInfiltration = (soilInfo.rate * (tc / 60) * lawnArea) / 1000;
+
+  const minorRow = results.find((r) => r.rp === 5) ?? results[1];
   const designRow = results.find((r) => r.rp === 100) ?? results[results.length - 1];
   const anyLid = lid.greenRoof || lid.rainGarden || lid.permeablePavement || lid.bioswale;
   const reductionPct = anyLid && designRow
     ? ((1 - designRow.Q_lid / designRow.Q_base) * 100)
     : 0;
 
-  const chartData = results.map((r) => ({
+  const chartData = results.map((r, idx) => ({
     name: `${r.rp}-yr`,
-    Baseline: +(r.Q_base * 1000).toFixed(2),
-    "With LID": +(r.Q_lid * 1000).toFixed(2),
+    "Pre-Dev": +(preDevResults[idx].Q_pre * 1000).toFixed(2),
+    "Post-Dev": +(r.Q_base * 1000).toFixed(2),
+    ...(anyLid ? { "With LID": +(r.Q_lid * 1000).toFixed(2) } : {}),
   }));
 
   const tooltipStyle = {
@@ -241,8 +212,8 @@ export default function DrainageCalculator({ lotSize, buildingArea, address, zon
             <span className="dc-stat-label">Impervious Ratio</span>
           </div>
           <div className="dc-stat">
-            <span className="dc-stat-value">{baseC.toFixed(2)}</span>
-            <span className="dc-stat-label">Runoff Coeff (C)</span>
+            <span className="dc-stat-value">{C_PRE_DEV} → {baseC.toFixed(2)}</span>
+            <span className="dc-stat-label">C (pre → post)</span>
           </div>
           <div className="dc-stat">
             <span className="dc-stat-value">{tc.toFixed(1)} min</span>
@@ -273,8 +244,20 @@ export default function DrainageCalculator({ lotSize, buildingArea, address, zon
               onChange={(e) => setSoil(e.target.value as SoilType)}
               className="dc-select"
             >
-              {(Object.keys(SOIL_TYPES) as SoilType[]).map((k) => (
-                <option key={k} value={k}>{SOIL_TYPES[k].label}</option>
+              {(Object.keys(SOIL_INFILTRATION) as SoilType[]).map((k) => (
+                <option key={k} value={k}>{SOIL_INFILTRATION[k].label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="dc-control-label">
+            Site Slope
+            <select
+              value={siteSlope}
+              onChange={(e) => setSiteSlope(parseFloat(e.target.value))}
+              className="dc-select"
+            >
+              {SLOPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
           </label>
@@ -296,7 +279,12 @@ export default function DrainageCalculator({ lotSize, buildingArea, address, zon
           </button>
         </div>
         <p className="dc-note">
-          IDF data: verified for Edmonton (ECCC Stn 3012216) · Duration = t<sub>c</sub> = {tc.toFixed(1)} min
+          {idfLive && idfStation
+            ? <>IDF derived from <strong>{idfStation.name}</strong> (Stn {idfStation.id}) daily precipitation · {idfData?.gumbel?.nYears ?? "?"} years ({idfData?.gumbel?.yearRange?.[0]}–{idfData?.gumbel?.yearRange?.[1]}) · Gumbel analysis + temporal disaggregation</>
+            : <>IDF data: ECCC Edmonton Blatchford (Stn 3012209) v3.30 · Fallback static table</>
+          } · Duration = t<sub>c</sub> = {tc.toFixed(1)} min
+          <br />
+          Edmonton design standard: <strong>5-yr</strong> return period for minor (pipe) system · <strong>100-yr</strong> for major (overland) system
         </p>
 
         <div className="dc-table-wrap">
@@ -312,8 +300,8 @@ export default function DrainageCalculator({ lotSize, buildingArea, address, zon
             </thead>
             <tbody>
               {results.map((r) => (
-                <tr key={r.rp} className={r.rp === 100 ? "dc-row-highlight" : ""}>
-                  <td>{r.rp}-yr</td>
+                <tr key={r.rp} className={r.rp === 5 || r.rp === 100 ? "dc-row-highlight" : ""}>
+                  <td>{r.rp}-yr{r.rp === 5 ? " ★" : r.rp === 100 ? " ★" : ""}</td>
                   <td>{r.i.toFixed(1)}</td>
                   <td>{(r.Q_base * 1000).toFixed(2)}</td>
                   <td>{r.pipe_base}</td>
@@ -323,6 +311,101 @@ export default function DrainageCalculator({ lotSize, buildingArea, address, zon
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* ── Pre vs Post Development ──────────────────── */}
+      <div className="dc-section">
+        <h4 className="dc-section-label">Pre vs Post Development — Detention Requirement</h4>
+        <p className="dc-note">
+          Edmonton requires post-development release ≤ pre-development runoff (C<sub>pre</sub> = {C_PRE_DEV}).
+          The excess must be detained on-site.
+        </p>
+        <div className="dc-table-wrap">
+          <table className="dc-table">
+            <thead>
+              <tr>
+                <th>Return Period</th>
+                <th>Q<sub>pre</sub> (L/s)</th>
+                <th>Q<sub>post</sub> (L/s)</th>
+                <th>Increase</th>
+                <th>Δ Excess (L/s)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {results.map((r, idx) => {
+                const Qpre = preDevResults[idx].Q_pre * 1000;
+                const Qpost = r.Q_base * 1000;
+                const excess = Qpost - Qpre;
+                const pctIncrease = Qpre > 0 ? ((Qpost - Qpre) / Qpre) * 100 : 0;
+                return (
+                  <tr key={r.rp} className={r.rp === 5 || r.rp === 100 ? "dc-row-highlight" : ""}>
+                    <td>{r.rp}-yr{r.rp === 5 ? " ★" : r.rp === 100 ? " ★" : ""}</td>
+                    <td>{Qpre.toFixed(2)}</td>
+                    <td>{Qpost.toFixed(2)}</td>
+                    <td style={{color:"#ef4444"}}>+{pctIncrease.toFixed(0)}%</td>
+                    <td style={{color:"#ef4444"}}>+{excess.toFixed(2)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <h4 className="dc-section-label" style={{marginTop:16}}>Required On-Site Detention (Modified Rational Method)</h4>
+        <p className="dc-note">
+          Iterates storm durations to find the critical duration that produces the maximum storage requirement.
+          Release rate = pre-development Q at the design t<sub>c</sub>.
+        </p>
+        <div className="dc-stat-grid" style={{marginTop:8}}>
+          <div className="dc-stat highlight">
+            <span className="dc-stat-value">{detention5.volume_m3.toFixed(2)} m³</span>
+            <span className="dc-stat-label">5-yr Detention Volume</span>
+          </div>
+          <div className="dc-stat highlight">
+            <span className="dc-stat-value">{detention100.volume_m3.toFixed(2)} m³</span>
+            <span className="dc-stat-label">100-yr Detention Volume</span>
+          </div>
+          <div className="dc-stat">
+            <span className="dc-stat-value">{detention5.critDur} min</span>
+            <span className="dc-stat-label">Critical Duration (5-yr)</span>
+          </div>
+          <div className="dc-stat">
+            <span className="dc-stat-value">{detention100.critDur} min</span>
+            <span className="dc-stat-label">Critical Duration (100-yr)</span>
+          </div>
+          <div className="dc-stat">
+            <span className="dc-stat-value">{detention5.release_Ls.toFixed(2)} L/s</span>
+            <span className="dc-stat-label">Max Release (5-yr)</span>
+          </div>
+          <div className="dc-stat">
+            <span className="dc-stat-value">{detention100.release_Ls.toFixed(2)} L/s</span>
+            <span className="dc-stat-label">Max Release (100-yr)</span>
+          </div>
+        </div>
+        {anyLid && (
+          <div className="dc-lid-results" style={{marginTop:12}}>
+            <div className="dc-lid-result-row">
+              <span className="dc-lid-result-label">5-yr Detention with LID</span>
+              <span className="dc-lid-result-value">
+                {detention5.volume_m3.toFixed(2)} → <strong>{detentionLid5.volume_m3.toFixed(2)} m³</strong>
+                <span className="dc-reduction">▼ {(detention5.volume_m3 - detentionLid5.volume_m3).toFixed(2)} m³ saved</span>
+              </span>
+            </div>
+            <div className="dc-lid-result-row">
+              <span className="dc-lid-result-label">100-yr Detention with LID</span>
+              <span className="dc-lid-result-value">
+                {detention100.volume_m3.toFixed(2)} → <strong>{detentionLid100.volume_m3.toFixed(2)} m³</strong>
+                <span className="dc-reduction">▼ {(detention100.volume_m3 - detentionLid100.volume_m3).toFixed(2)} m³ saved</span>
+              </span>
+            </div>
+          </div>
+        )}
+        <p className="dc-note" style={{marginTop:8}}>
+          <strong>Typical facility:</strong> For {detention100.volume_m3.toFixed(1)} m³ of detention — underground tank ≈{" "}
+          {Math.ceil(detention100.volume_m3 / 2)} m long × 1.5 m wide × {Math.min(1.5, detention100.volume_m3 / (Math.ceil(detention100.volume_m3 / 2) * 1.5)).toFixed(1)} m deep,
+          or a dry pond ≈ {(detention100.volume_m3 / 0.5).toFixed(0)} m² at 0.5m average depth.
+          Actual sizing depends on site constraints and outlet control design.
+        </p>
       </div>
 
       {/* ── LID Simulator ──────────────────────────────── */}
@@ -424,7 +507,7 @@ export default function DrainageCalculator({ lotSize, buildingArea, address, zon
       {/* ── Peak Discharge Chart ───────────────────────── */}
       <div className="dc-section">
         <h4 className="dc-section-label">
-          Peak Discharge Comparison {anyLid ? "(Baseline vs. LID)" : ""}
+          Peak Discharge — Pre vs Post Development {anyLid ? "vs. LID" : ""}
         </h4>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={chartData} barGap={2} barCategoryGap="20%">
@@ -443,7 +526,8 @@ export default function DrainageCalculator({ lotSize, buildingArea, address, zon
             <Legend
               wrapperStyle={{ fontSize: 10, color: "rgba(57,211,83,0.6)" }}
             />
-            <Bar dataKey="Baseline" fill="#39d353" radius={[2, 2, 0, 0]} />
+            <Bar dataKey="Pre-Dev" fill="#6b7280" radius={[2, 2, 0, 0]} />
+            <Bar dataKey="Post-Dev" fill="#ef4444" radius={[2, 2, 0, 0]} />
             {anyLid && (
               <Bar dataKey="With LID" fill="#22d3ee" radius={[2, 2, 0, 0]} />
             )}
@@ -455,24 +539,56 @@ export default function DrainageCalculator({ lotSize, buildingArea, address, zon
       <div className="dc-section dc-summary">
         <h4 className="dc-section-label">Design Summary</h4>
         <div className="dc-summary-grid">
-          <div className="dc-summary-item">
-            <span className="dc-summary-label">Design Storm (100-yr)</span>
-            <span className="dc-summary-value">{designRow.i.toFixed(1)} mm/hr for {tc.toFixed(0)} min</span>
+          <div className="dc-summary-item highlight">
+            <span className="dc-summary-label">Minor System Pipe (5-yr)</span>
+            <span className="dc-summary-value lg">
+              {anyLid ? minorRow.pipe_lid : minorRow.pipe_base} mm
+            </span>
           </div>
           <div className="dc-summary-item highlight">
-            <span className="dc-summary-label">Min. Storm Pipe</span>
+            <span className="dc-summary-label">Major System Pipe (100-yr)</span>
             <span className="dc-summary-value lg">
               {anyLid ? designRow.pipe_lid : designRow.pipe_base} mm
             </span>
           </div>
+          <div className="dc-summary-item highlight">
+            <span className="dc-summary-label">On-Site Detention (5-yr)</span>
+            <span className="dc-summary-value lg">
+              {(anyLid ? detentionLid5.volume_m3 : detention5.volume_m3).toFixed(1)} m³
+            </span>
+          </div>
+          <div className="dc-summary-item highlight">
+            <span className="dc-summary-label">On-Site Detention (100-yr)</span>
+            <span className="dc-summary-value lg">
+              {(anyLid ? detentionLid100.volume_m3 : detention100.volume_m3).toFixed(1)} m³
+            </span>
+          </div>
           <div className="dc-summary-item">
-            <span className="dc-summary-label">Peak Discharge (Q₁₀₀)</span>
+            <span className="dc-summary-label">Pre-Dev C (baseline)</span>
+            <span className="dc-summary-value">{C_PRE_DEV}</span>
+          </div>
+          <div className="dc-summary-item">
+            <span className="dc-summary-label">Post-Dev C</span>
+            <span className="dc-summary-value">{(anyLid ? lidC : baseC).toFixed(2)}</span>
+          </div>
+          <div className="dc-summary-item">
+            <span className="dc-summary-label">Peak Q₅ (minor)</span>
+            <span className="dc-summary-value">
+              {((anyLid ? minorRow.Q_lid : minorRow.Q_base) * 1000).toFixed(2)} L/s
+            </span>
+          </div>
+          <div className="dc-summary-item">
+            <span className="dc-summary-label">Peak Q₁₀₀ (major)</span>
             <span className="dc-summary-value">
               {((anyLid ? designRow.Q_lid : designRow.Q_base) * 1000).toFixed(2)} L/s
             </span>
           </div>
           <div className="dc-summary-item">
-            <span className="dc-summary-label">Runoff Volume</span>
+            <span className="dc-summary-label">Max Release Rate</span>
+            <span className="dc-summary-value">{detention100.release_Ls.toFixed(2)} L/s (pre-dev equivalent)</span>
+          </div>
+          <div className="dc-summary-item">
+            <span className="dc-summary-label">100-yr Runoff Volume</span>
             <span className="dc-summary-value">
               {(anyLid ? designRow.vol_lid : designRow.vol_base).toFixed(2)} m³
             </span>
@@ -482,9 +598,13 @@ export default function DrainageCalculator({ lotSize, buildingArea, address, zon
             <span className="dc-summary-value">{potentialInfiltration.toFixed(2)} m³ during storm</span>
           </div>
           <div className="dc-summary-item">
+            <span className="dc-summary-label">Site Slope</span>
+            <span className="dc-summary-value">{(siteSlope * 100).toFixed(1)}%</span>
+          </div>
+          <div className="dc-summary-item" style={{gridColumn:"1 / -1"}}>
             <span className="dc-summary-label">Methodology</span>
             <span className="dc-summary-value sm">
-              Rational Method (Q=CiA) · Manning's pipe sizing · Edmonton IDF
+              Rational Method (Q=CiA) · Manning's pipe sizing · Modified Rational (detention) · Edmonton IDF · Kirpich t<sub>c</sub>
             </span>
           </div>
         </div>
@@ -493,9 +613,13 @@ export default function DrainageCalculator({ lotSize, buildingArea, address, zon
           Soil infiltration — Rawls et al. (1983).
           Runoff coefficients — standard ranges (Bedient et al., 2019).
           Manning's n=0.013 (PVC), S=0.5%.
+          Pre-dev C={C_PRE_DEV} assumes undeveloped prairie on glacial till.
           <br />
-          <strong>Approximate:</strong> IDF intensities are representative of Edmonton — verify against
-          ECCC Engineering Climate Datasets (Stn 3012216) for any real project.
+          <strong>IDF source:</strong>{" "}
+          {idfLive && idfStation
+            ? <>Derived from ECCC daily precipitation — {idfStation.name} (Stn {idfStation.id}), {idfData?.gumbel?.nYears ?? "?"} years of record ({idfData?.gumbel?.yearRange?.[0]}–{idfData?.gumbel?.yearRange?.[1]}), Gumbel Method of Moments + temporal disaggregation ratios.</>
+            : <>ECCC Engineering Climate Datasets v3.30, Station 3012209 (Edmonton Blatchford), 75 years of record (1914–2021). Static fallback.</>
+          }
           <br />
           <strong>Not for construction</strong> — preliminary analysis only.
         </p>
